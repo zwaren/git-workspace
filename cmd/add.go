@@ -5,8 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 	"time"
+
+	"git-workspace/internal/templates"
 
 	"github.com/spf13/cobra"
 )
@@ -105,13 +106,7 @@ func extractRepoName(url string) string {
 }
 
 func processRepoTemplates(wrapperDir string, data RepoData) error {
-	templateDir := filepath.Join("templates", "repo_wrapper")
-	entries, err := os.ReadDir(templateDir)
-	if err != nil {
-		return fmt.Errorf("failed to read template directory: %v", err)
-	}
-
-	// Create additional directories
+	// Create required directories
 	dirs := []string{
 		filepath.Join(wrapperDir, "local"),
 		filepath.Join(wrapperDir, "scripts"),
@@ -123,36 +118,30 @@ func processRepoTemplates(wrapperDir string, data RepoData) error {
 		}
 	}
 
-	// Process each template file
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
+	// Get list of templates
+	templateFiles, err := templates.ListTemplatesInDir("repo_wrapper")
+	if err != nil {
+		return fmt.Errorf("failed to list templates: %v", err)
+	}
 
-		// Read template file
-		templatePath := filepath.Join(templateDir, entry.Name())
-		content, err := os.ReadFile(templatePath)
+	// Process each template
+	for _, templatePath := range templateFiles {
+		tmpl, err := templates.GetTemplate(templatePath)
 		if err != nil {
-			return fmt.Errorf("failed to read template %s: %v", entry.Name(), err)
-		}
-
-		// Parse template
-		tmpl, err := template.New(entry.Name()).Parse(string(content))
-		if err != nil {
-			return fmt.Errorf("failed to parse template %s: %v", entry.Name(), err)
+			return fmt.Errorf("failed to get template %s: %v", templatePath, err)
 		}
 
 		// Create output file
-		outputPath := filepath.Join(wrapperDir, entry.Name())
+		outputPath := filepath.Join(wrapperDir, filepath.Base(templatePath))
 		outputFile, err := os.Create(outputPath)
 		if err != nil {
-			return fmt.Errorf("failed to create file %s: %v", entry.Name(), err)
+			return fmt.Errorf("failed to create file %s: %v", filepath.Base(templatePath), err)
 		}
 		defer outputFile.Close()
 
 		// Execute template
 		if err := tmpl.Execute(outputFile, data); err != nil {
-			return fmt.Errorf("failed to execute template %s: %v", entry.Name(), err)
+			return fmt.Errorf("failed to execute template %s: %v", filepath.Base(templatePath), err)
 		}
 	}
 

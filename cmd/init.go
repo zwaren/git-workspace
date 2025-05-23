@@ -5,7 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
+
+	"git-workspace/internal/templates"
 
 	"github.com/spf13/cobra"
 )
@@ -52,10 +53,8 @@ This will create a new directory with the given name and set it up as a Git repo
 			return fmt.Errorf("failed to create .gitkeep: %v", err)
 		}
 
-		// Initialize Git operations
-		git := NewGitWrapper(workspaceDir)
-
 		// Initialize Git repository
+		git := NewGitWrapper(workspaceDir)
 		if err := git.Init(); err != nil {
 			return fmt.Errorf("failed to initialize git repository: %v", err)
 		}
@@ -83,40 +82,30 @@ func init() {
 }
 
 func processWorkspaceTemplates(data WorkspaceData) error {
-	templateDir := filepath.Join("..", "templates", "workspace")
-	entries, err := os.ReadDir(templateDir)
+	// Get list of templates
+	templateFiles, err := templates.ListTemplatesInDir("workspace")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list templates: %v", err)
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		// Read template file
-		templatePath := filepath.Join(templateDir, entry.Name())
-		content, err := os.ReadFile(templatePath)
+	// Process each template
+	for _, templatePath := range templateFiles {
+		tmpl, err := templates.GetTemplate(templatePath)
 		if err != nil {
-			return err
-		}
-
-		// Parse template
-		tmpl, err := template.New(entry.Name()).Parse(string(content))
-		if err != nil {
-			return err
+			return fmt.Errorf("failed to get template %s: %v", templatePath, err)
 		}
 
 		// Create output file
-		outputFile, err := os.Create(entry.Name())
+		outputPath := filepath.Base(templatePath)
+		outputFile, err := os.Create(outputPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create file %s: %v", outputPath, err)
 		}
 		defer outputFile.Close()
 
 		// Execute template
 		if err := tmpl.Execute(outputFile, data); err != nil {
-			return err
+			return fmt.Errorf("failed to execute template %s: %v", outputPath, err)
 		}
 	}
 
