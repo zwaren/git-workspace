@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"git-workspace/internal/fsutil"
 	"git-workspace/internal/templates"
 
 	"github.com/spf13/cobra"
@@ -18,11 +19,30 @@ type RepoData struct {
 	CloneDate string
 }
 
+// copyRepoLocalDir copies the local directory from the repository to the wrapper if it exists
+func copyRepoLocalDir(repoDir, wrapperDir string) error {
+	srcLocalDir := filepath.Join(repoDir, "local")
+	dstLocalDir := filepath.Join(wrapperDir, "local")
+
+	if _, err := os.Stat(srcLocalDir); err == nil {
+		// Remove the default local directory if it exists
+		os.RemoveAll(dstLocalDir)
+
+		// Copy the local directory from the repository
+		if err := fsutil.CopyDir(srcLocalDir, dstLocalDir); err != nil {
+			return fmt.Errorf("failed to copy local directory: %v", err)
+		}
+		fmt.Printf("Copied local/ directory from repository to wrapper\n")
+	}
+	return nil
+}
+
 var addCmd = &cobra.Command{
 	Use:   "add [repository-url]",
 	Short: "Add a repository to the workspace",
 	Long: `Add a Git repository to the workspace by cloning it as a submodule and wrapping it with a development structure.
-The repository will be added as a submodule in the src directory of its wrapper.`,
+The repository will be added as a submodule in the repo directory of its wrapper.
+If the repository contains a local/ directory, it will be copied to the wrapper's local/ directory.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repoURL := args[0]
@@ -54,8 +74,8 @@ The repository will be added as a submodule in the src directory of its wrapper.
 		workspaceGit := NewGitWrapper(absWorkspaceDir)
 
 		// Add the repository as a submodule in the wrapper's repo directory
-		srcDir := filepath.Join(wrapperDir, "repo")
-		if err := workspaceGit.AddSubmodule(repoURL, srcDir); err != nil {
+		repoDir := filepath.Join(wrapperDir, "repo")
+		if err := workspaceGit.AddSubmodule(repoURL, repoDir); err != nil {
 			return fmt.Errorf("failed to add repository as submodule: %v", err)
 		}
 
@@ -74,6 +94,11 @@ The repository will be added as a submodule in the src directory of its wrapper.
 		// Process development wrapper templates
 		if err := processRepoTemplates(wrapperDir, data); err != nil {
 			return fmt.Errorf("failed to process templates: %v", err)
+		}
+
+		// Copy local directory from repository if it exists
+		if err := copyRepoLocalDir(repoDir, wrapperDir); err != nil {
+			return err
 		}
 
 		// Stage and commit changes
@@ -140,12 +165,6 @@ func processRepoTemplates(wrapperDir string, data RepoData) error {
 		if err := tmpl.Execute(outputFile, data); err != nil {
 			return fmt.Errorf("failed to execute template %s: %v", filepath.Base(templatePath), err)
 		}
-	}
-
-	// Create .gitkeep in local directory
-	localGitKeep := filepath.Join(wrapperDir, "local", ".gitkeep")
-	if err := os.WriteFile(localGitKeep, []byte{}, 0644); err != nil {
-		return fmt.Errorf("failed to create .gitkeep: %v", err)
 	}
 
 	return nil
