@@ -11,7 +11,3 @@ Thumbs.db
 # Local environment files
 .env
 .env.local
-
-# Workspace specific ignores
-/repos/*/
-!/repos/.gitkeep 

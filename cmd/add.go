@@ -45,25 +45,22 @@ The repository will be added as a submodule in the src directory of its wrapper.
 		}
 
 		// Get absolute path for Git operations
-		absWrapperDir, err := filepath.Abs(wrapperDir)
+		absWorkspaceDir, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("failed to get absolute path: %v", err)
+			return fmt.Errorf("failed to get workspace directory: %v", err)
 		}
 
-		// Initialize Git repository in the wrapper directory
-		wrapperGit := NewGitWrapper(absWrapperDir)
-		if err := wrapperGit.Init(); err != nil {
-			return fmt.Errorf("failed to initialize wrapper repository: %v", err)
-		}
+		// Use workspace Git repository
+		workspaceGit := NewGitWrapper(absWorkspaceDir)
 
-		// Add the repository as a submodule in the src directory
-		srcDir := "src"
-		if err := wrapperGit.AddSubmodule(repoURL, srcDir); err != nil {
+		// Add the repository as a submodule in the wrapper's repo directory
+		srcDir := filepath.Join(wrapperDir, "repo")
+		if err := workspaceGit.AddSubmodule(repoURL, srcDir); err != nil {
 			return fmt.Errorf("failed to add repository as submodule: %v", err)
 		}
 
 		// Initialize and update the submodule
-		if err := wrapperGit.InitSubmodules(); err != nil {
+		if err := workspaceGit.InitSubmodules(); err != nil {
 			return fmt.Errorf("failed to initialize submodules: %v", err)
 		}
 
@@ -79,9 +76,9 @@ The repository will be added as a submodule in the src directory of its wrapper.
 			return fmt.Errorf("failed to process templates: %v", err)
 		}
 
-		// Create initial commit with templates and submodule
-		if err := wrapperGit.CreateInitialCommit("Initial wrapper setup with submodule"); err != nil {
-			return fmt.Errorf("failed to create initial commit: %v", err)
+		// Stage and commit changes
+		if err := workspaceGit.CreateInitialCommit(fmt.Sprintf("Add %s repository with development wrapper", repoName)); err != nil {
+			return fmt.Errorf("failed to create commit: %v", err)
 		}
 
 		fmt.Printf("Successfully added repository '%s' to workspace as a submodule\n", repoName)
