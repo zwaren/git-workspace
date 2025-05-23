@@ -1,0 +1,13 @@
+# Local development files
+local/*
+!local/.gitkeep
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db 
